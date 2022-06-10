@@ -6,7 +6,7 @@ EASY_SRA_DIR="${APPS_DIR}/easy-rsa/3/"
 CLIENT_CERT_FILE_DIR="${APPS_DIR}/client_cert_file/"
 OVPN_USER_INDEX="${APPS_DIR}/easy-rsa/3/pki/index.txt"
 OVPN_REMOTE_IP='192.168.3.160'
-
+DOMAIN_INADM='inadm.com'
 
 # 判断是否为空参数
 if [ -z $1 ]; then
@@ -23,17 +23,18 @@ fi
 
 create_ovpn_cert() {
     cd ${EASY_SRA_DIR}
-    spawn ./easyrsa build-client-full ${OVPN_USER}.inadm.com &> /dev/null
+    expect << EOF
+    spawn sh /data/apps/openvpn/easy-rsa/3/easyrsa build-client-full ${OVPN_USER}.${DOMAIN_INADM} nopass
     expect {
-        "^Enter PEM pass phrase" { send "inadm.com\r"; exp_continue }
-        "^Verifying - Enter" { send "inadm.com\r"; exp_continue }
-        "^Enter pass phrase" { send "inadm.com\r" }
+        "Enter pass phrase" { send "inadm.com\r" }
     }
-    expect eof
-    echo -e "client\nproto tcp\nremote ${OVPN_REMOTE_IP}\nport 1202\ndev tun\nnobind\nremote-cert-tls server\n" >  ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
+    expect
+EOF
+
+    echo -e "client\nproto tcp\nremote ${OVPN_REMOTE_IP}\nport 1202\ndev tun\nsndbuf 393216\nrcvbuf 393216\nnobind\ncomp-lzo\nremote-cert-tls server\nverb 3\n" >  ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
     echo '<ca>' >>  ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; cat pki/ca.crt >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; echo '</ca>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
-    echo '<cert>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; cat pki/issued/${OVPN_USER}.crt >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; echo '</cert>' >>  ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
-    echo '<key>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; cat pki/private/${OVPN_USER}.key >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; echo '</key>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
+    echo '<cert>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; cat pki/issued/${OVPN_USER}.${DOMAIN_INADM}.crt >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; echo '</cert>' >>  ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
+    echo '<key>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; cat pki/private/${OVPN_USER}.${DOMAIN_INADM}.key >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; echo '</key>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
     echo '<tls-auth>' >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; grep -v '^#' ${APPS_DIR}/cert/ta.key >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn; echo -e "</tls-auth>\nkey-direction 1" >> ${CLIENT_CERT_FILE_DIR}/${OVPN_USER}.ovpn
     echo "${OVPN_USER} Create success."
     true > ${APPS_DIR}/ovpnuser
@@ -43,12 +44,12 @@ delete_ovpn_cert() {
     cd ${EASY_SRA_DIR}
     echo -e 'yes\n' | ./easyrsa revoke ${OVPN_USER} &> /dev/null
     ./easyrsa gen-crl &> /dev/null
-    rm -f ${EASY_SRA_DIR}pki/issued/${OVPN_USER}.crt
-    rm -f ${EASY_SRA_DIR}pki/private/${OVPN_USER}.key
+    rm -f ${EASY_SRA_DIR}pki/issued/${OVPN_USER}.${DOMAIN_INADM}.crt
+    rm -f ${EASY_SRA_DIR}pki/private/${OVPN_USER}.${DOMAIN_INADM}.key
     \cp ${EASY_SRA_DIR}pki/crl.pem ${APPS_DIR}/cert/
     echo "${OVPN_USER} Delete success."
     # 重启 openvpn 服务端注销生效,所有客户端会重新进行连接
-    systemctl restart openvpn
+    # systemctl restart openvpn
     true > ${APPS_DIR}/ovpnuser
 }
 
