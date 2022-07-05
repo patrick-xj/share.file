@@ -1,4 +1,6 @@
 #!/bin/bash
+# Auth: Patrick
+# Blog: www.inadm.com
 # Dest: OpenVPN 客户端证书文件创建并合并为一个证书文件
 
 APPS_DIR='/data/apps/openvpn'
